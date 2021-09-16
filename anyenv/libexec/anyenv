@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+#--------------------
+set -e
+#--------------------
+cat << EOS
+コマンドがエラー終了時に直ちに終了するように設定
+
+EOS
+
+#--------------------
+export -n CDPATH
+#--------------------
+cat << EOS
+CDPATH 環境変数を削除
+export -n NAME
+... NAME 環境変数を削除
+
+EOS
+
+#--------------------
+if [ "$1" = "--debug" ]; then
+  export ANYENV_DEBUG=1
+  shift
+fi
+#--------------------
+cat << EOS
+引数の1つ目が --debug だった場合、ANYENV_DEBUG 環境変数を 1 に設定し、引数をシフト
+
+EOS
+
+#--------------------
+if [ -n "$ANYENV_DEBUG" ]; then
+  export PS4='+ [${BASH_SOURCE##*/}:${LINENO}] '
+  set -x
+fi
+#--------------------
+SAMPLE_PATH="./a/b/c.txt"
+declare -a SAMPLE_ARRAY=("a" "b" "c")
+cat << EOS
+ANYENV_DEBUG 環境変数が empty でない場合
+デバッグ出力にファイル名と行数を表示するように設定
+
+BASH_SOURCE=${BASH_SOURCE} ... スクリプトパスが入る
+help を見ると An array variable ... とあり呼び出し順に配列になるようだが、要素を指定しないと最初の要素になるようだ
+
+declare -a SAMPLE_ARRAY=("a" "b" "c")
+\${SAMPLE_ARRAY}=${SAMPLE_ARRAY}
+\${SAMPLE_ARRAY[0]}=${SAMPLE_ARRAY[0]}
+\${SAMPLE_ARRAY[1]}=${SAMPLE_ARRAY[1]}
+
+\${BASH_SOURCE##*/}
+ファイル名のみの取り出し
+
+\${parameter#word} \${parameter##word}
+\${parameter%word} \${parameter%%word}
+word に一致したパターンの削除
+# は前方(prefix) % は後方(suffix) の一致したパターンが対象
+数が1つなら 最短( shortest ) 2つなら 最長( longest )のパターンが対象
+
+\${SAMPLE_PATH}=${SAMPLE_PATH}
+\${SAMPLE_PATH#*/}=${SAMPLE_PATH#*/}
+\${SAMPLE_PATH##*/}=${SAMPLE_PATH##*/}
+\${SAMPLE_PATH%/*}=${SAMPLE_PATH%/*}
+\${SAMPLE_PATH%%/*}=${SAMPLE_PATH%%/*}
+
+EOS
+
+
+#--------------------
+READLINK=$(type -p greadlink readlink | head -1)
+#--------------------
+cat << EOS
+greadlink/readlink のパスを取得
+
+\${READLINK}=${READLINK}
+
+type NAME ... コマンド名 NAME がどのように解釈されるか判別
+alias, keyword, function, builtin, file, 空文字
+-p オプションで 種別が file の場合にパスを取得する
+環境によって greadlink がインストールされていないことを考慮していると思われる
+
+EOS
+
+
+#--------------------
+if [ -z "$READLINK" ]; then
+  echo "anyenv: cannot find readlink - are you missing GNU coreutils?" >&2
+  exit 1
+fi
+#--------------------
+cat << EOS
+READLINK 変数が空ならメッセージを表示して終了
+test -z 文字列が empty なら True
+
+EOS
+
+
+#--------------------
+resolve_link() {
+  $READLINK "$1"
+}
+#--------------------
+
+#--------------------
+abs_dirname() {
+  local cwd="$(pwd)"
+  local path="$1"
+
+cat << EOS # reading
+
+abs_dirname start
+  関数にもポジショナルパラメータはある。\$0は変更されない
+  \$0=$0
+  \$1=$1
+  cwd=$cwd カレントディレクトリを設定
+  path=$path 引数を設定（基本的には anyenv のパスか）
+EOS
+
+  while [ -n "$path" ]; do
+    cd "${path%/*}"
+    local name="${path##*/}"
+
+cat << EOS # reading
+  cd ${path%/*}
+  name=${name}
+EOS
+
+    path="$(resolve_link "$name" || true)"
+  done
+
+cat << EOS
+  path=${path}
+abs_dirname end
+
+EOS
+
+  pwd
+  cd "$cwd"
+}
+#--------------------
+
+
+ANYENV_ROOT=$(readlink -f $(dirname $(dirname ${BASH_SOURCE}))) # ここではリーディング用に実行スクリプトdirに設定
+#--------------------
+if [ -z "${ANYENV_ROOT}" ]; then
+  ANYENV_ROOT="${HOME}/.anyenv"
+else
+  ANYENV_ROOT="${ANYENV_ROOT%/}"
+fi
+export ANYENV_ROOT
+#--------------------
+cat << EOS
+環境変数 ANYENV_ROOT が設定されていなければ ホームの .anyenv に設定
+
+\${ANYENV_ROOT}=${ANYENV_ROOT}
+
+\$(pwd)=$(pwd)
+
+EOS
+
+#--------------------
+if [ -z "${ANYENV_DIR}" ]; then
+  ANYENV_DIR="$(pwd)"
+else
+  cd "$ANYENV_DIR" 2>/dev/null || {
+    echo "anyenv: cannot change working directory to \`$ANYENV_DIR'"
+    exit 1
+  } >&2
+  ANYENV_DIR="$(pwd)"
+  cd "$OLDPWD"
+fi
+export ANYENV_DIR
+#--------------------
+cat << EOS
+ANYENV_DIR 環境変数が設定されていなければ カレントディレクトリ に設定
+（ anyenv を呼び出した時のディレクトリ？ ）
+ANYENV_DIR=${ANYENV_DIR}
+
+\$() ... \`...\` と同様にコマンドを実行（違いはあるっぽい）
+{ list; } ... (複数行の) list をカレントシェルで実行する
+
+EOS
+
+#--------------------
+shopt -s nullglob
+#--------------------
+cat << EOS
+shop-t ではなく sh(ell) opt(ion)                                  
+パス名展開ができなかった場合、空文字列にするシェルオプションを有効に
+see also help shopt / man bash.                                  
+
+EOS
+
+#--------------------
+bin_path="$(abs_dirname "$0")"
+#--------------------
+cat << EOS
+自身( anyenv )の実ディレクトリを取得している、のかな
+bin_path=\${bin_path}
+
+EOS
+
+#--------------------
+for plugin_bin in "${ANYENV_ROOT}/plugins/"*/bin; do
+  bin_path="${bin_path}:${plugin_bin}"
+done
+export PATH="${bin_path}:${PATH}"
+#--------------------
+cat << EOS
+自身( anyenv )に加えてプラグインのパスを設定
+bin_path=\${bin_path}
+PATH=${PATH}
+
+EOS
+
+#--------------------
+hook_path="${ANYENV_HOOK_PATH}:${ANYENV_ROOT}/anyenv.d:/usr/local/etc/anyenv.d:/etc/anyenv.d:/usr/lib/anyenv/hooks"
+for plugin_hook in "${ANYENV_ROOT}/plugins/"*/etc/anyenv.d; do
+  hook_path="${hook_path}:${plugin_hook}"
+done
+export ANYENV_HOOK_PATH="$hook_path"
+#--------------------
+cat << EOS
+\${ANYENV_HOOK_PATH}=${ANYENV_HOOK_PATH}
+フック用のパスを設定してるっぽい
+
+EOS
+
+#--------------------
+shopt -u nullglob
+#--------------------
+cat << EOS
+シェルオプションの解除
+
+EOS
+
+
+#--------------------
+command="$1"
+#--------------------
+
+cat << EOS
+\$command=$command
+${PATH}
+$(which anyenv)
+
+EOS
+READING_PATH=$(dirname ${BASH_SOURCE}) # *1) PATHが効かないっぽい動きなのでちょっと工作
+cat << EOS
+\${READING_PATH}=${READING_PATH}
+
+EOS
+
+#--------------------
+case "$command" in
+"" | "-h" | "--help" )
+  #echo -e "$(anyenv---version)\n$(anyenv-help)" >&2
+  echo -e "$(${READING_PATH}/anyenv---version)\n$(${READING_PATH}/anyenv-help)" >&2 # *1
+  ;;
+"-v" )
+  #exec anyenv---version
+  exec ${READING_PATH}/anyenv---version # *1
+  ;;
+* )
+  #command_path="$(command -v "anyenv-$command" || true)"
+  command_path="$(command -v "${READING_PATH}/anyenv-$command" || true)" # *1
+  if [ -z "$command_path" ]; then
+    echo "anyenv: no such command \`$command'" >&2
+    exit 1
+  fi
+
+  shift 1
+  exec "$command_path" "$@"
+  ;;
+esac
+#--------------------
