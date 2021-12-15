@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Summary: List all available rbenv commands
+# Usage: rbenv commands [--sh|--no-sh]
+
+cat << READING
+rbenv-commands: List all available rbenv commands
+
+READING
+
+#--------------------
+set -e
+[ -n "$RBENV_DEBUG" ] && set -x
+#--------------------
+cat << READING
+RBENV_DEBUG が定義されていれば vorbose mode
+
+READING
+
+#--------------------
+# Provide rbenv completions
+if [ "$1" = "--complete" ]; then
+  echo --sh
+  echo --no-sh
+  exit
+fi
+#--------------------
+cat << READING
+引数が --complete なら --sh, --no-sh を表示して終了。
+なぜこんなことを？ 以前はこのオプションだった？
+
+READING
+
+#--------------------
+if [ "$1" = "--sh" ]; then
+  sh=1
+  shift
+elif [ "$1" = "--no-sh" ]; then
+  nosh=1
+  shift
+fi
+#--------------------
+cat << READING
+引数 --sh, --no-sh に応じてフラグを設定
+
+READING
+PATH=".:${PATH}"
+
+#--------------------
+IFS=: paths=($PATH)
+#--------------------
+cat << READING
+IFS (Internal Field Separator) にコロンを設定し、PATHの配列を取得
+PATH=$PATH
+$({ for path in "${paths[@]}"; do
+  echo 
+done } )
+paths[0]=$paths[0]
+paths[1]=$paths[1]
+
+READING
+exit
+
+#--------------------
+shopt -s nullglob
+#--------------------
+cat << READING
+シェルオプション設定
+
+READING
+
+
+{ for path in "${paths[@]}"; do
+    for command in "${path}/rbenv-"*; do
+      command="${command##*rbenv-}"
+      if [ -n "$sh" ]; then
+        if [ "${command:0:3}" = "sh-" ]; then
+          echo "${command##sh-}"
+        fi
+      elif [ -n "$nosh" ]; then
+        if [ "${command:0:3}" != "sh-" ]; then
+          echo "${command##sh-}"
+        fi
+      else
+        echo "${command##sh-}"
+      fi
+    done
+  done
+} | sort | uniq
